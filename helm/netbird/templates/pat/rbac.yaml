@@ -1,0 +1,63 @@
+{{- if .Values.pat.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.pat.serviceAccountName }}
+  labels: {{- include "common.labels" (dict "name" (include "netbird.pat.name" .) "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "netbird.pat.name" . }}
+  namespace: {{ include "netbird.pat.secretNamespace" . }}
+  labels: {{- include "common.labels" (dict "name" (include "netbird.pat.name" .) "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "netbird.pat.name" . }}
+  namespace: {{ include "netbird.pat.secretNamespace" . }}
+  labels: {{- include "common.labels" (dict "name" (include "netbird.pat.name" .) "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "netbird.pat.name" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.pat.serviceAccountName }}
+    namespace: {{ .Release.Namespace }}
+---
+# Lets the bootstrap roll the server Deployment after /api/setup so the
+# single-account-anchor init container re-runs and stamps the setup account's
+# domain. Always in the release namespace (where the server lives), which may
+# differ from the rotation-store Secret's namespace above.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "netbird.pat.name" . }}-server-restart
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "common.labels" (dict "name" (include "netbird.pat.name" .) "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "netbird.pat.name" . }}-server-restart
+  namespace: {{ .Release.Namespace }}
+  labels: {{- include "common.labels" (dict "name" (include "netbird.pat.name" .) "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "netbird.pat.name" . }}-server-restart
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.pat.serviceAccountName }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

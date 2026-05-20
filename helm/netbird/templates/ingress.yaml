@@ -1,0 +1,29 @@
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: netbird-ingressroute
+  labels: {{- include "common.labels" (dict "name" "netbird" "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 4 }}
+spec:
+  entryPoints:
+    - websecure
+  routes:
+    - kind: Rule
+      match: Host(`netbird.{{ .Values.headHost }}`) && (PathPrefix(`/management.ManagementService`) || PathPrefix(`/signalexchange.SignalExchange`))
+      services:
+        - kind: Service
+          name: {{ .Values.server.name }}
+          port: {{ .Values.server.port }}
+          scheme: h2c
+    - kind: Rule
+      match: Host(`netbird.{{ .Values.headHost }}`) && (PathPrefix(`/api`) || PathPrefix(`/oauth2`) || PathPrefix(`/ws-proxy`) || PathPrefix(`/relay`))
+      services:
+        - kind: Service
+          name: {{ .Values.server.name }}
+          port: {{ .Values.server.port }}
+    - kind: Rule
+      match: Host(`netbird.{{ .Values.headHost }}`)
+      services:
+        - kind: Service
+          name: {{ .Values.dashboard.name }}
+          port: {{ .Values.dashboard.port }}
+

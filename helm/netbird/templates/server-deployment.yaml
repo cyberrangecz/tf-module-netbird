@@ -1,0 +1,39 @@
+{{- $name := .Values.server.name -}}
+{{- $ports := list (dict "port" .Values.server.port "protocol" "TCP" "probe" true) -}}
+{{- $args := toJson (concat (list "--config" .Values.server.configMountPath) .Values.server.extraArgs) -}}
+{{- include "common.deployment.header" (dict "name" $name "replicasCount" .Values.server.replicasCount "strategy" "Recreate" "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) }}
+      # Fix for /api/setup creating the first owner account with an
+      # empty domain, causing each IdP login using its own account
+      # with isolated resources. It only touches a domainless account
+      # when exactly one account exists, and never blocks server startup.
+      initContainers:
+        - name: single-account-anchor
+          image: {{ .Values.server.anchorImage | quote }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              DB="{{ .Values.server.dataDir }}/store.db"
+              DOMAIN="{{ .Values.server.singleAccountDomain }}"
+              if [ ! -f "$DB" ]; then echo "no store yet, skipping anchor"; exit 0; fi
+              if ! command -v sqlite3 >/dev/null 2>&1; then
+                apk add --no-cache sqlite >/dev/null 2>&1 || { echo "sqlite3 unavailable, skipping anchor"; exit 0; }
+              fi
+              count="$(sqlite3 "$DB" 'SELECT count(*) FROM accounts;' 2>/dev/null || echo 0)"
+              if [ "$count" = "1" ]; then
+                sqlite3 "$DB" "UPDATE accounts SET domain='$DOMAIN', domain_category='private', is_domain_primary_account=1 WHERE domain='' OR domain IS NULL;" \
+                  && echo "anchored single account to domain $DOMAIN" \
+                  || echo "anchor UPDATE failed, skipping"
+              else
+                echo "account count=$count (not 1), skipping anchor"
+              fi
+              exit 0
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.server.mounts.data.mountPath }}
+{{- include "common.deployment.containers" (dict "name" $name "ports" $ports "args" $args "Values" .Values.server) }}
+          {{- with .Values.server.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- include "common.deployment.volumes" (dict "Values" .Values.server) }}

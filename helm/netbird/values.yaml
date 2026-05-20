@@ -1,0 +1,77 @@
+encryptionKey: ''
+headHost:
+
+server:
+  image:
+    url: netbirdio/netbird-server
+    tag: 0.72.2
+  name: netbird-server
+  port: 80
+  stunPort: 3478
+  replicasCount: 1
+  resources: {}
+  dataDir: /var/lib/netbird
+  configMountPath: /etc/netbird/config.yaml
+  relayAuthSecret:
+  extraArgs: []
+  environments:
+    NB_SETUP_PAT_ENABLED: "true"
+  # Single-account anchor: the combined netbird-server hardcodes single-account
+  # mode with an auto-resolved domain, but the /api/setup bootstrap creates a
+  # domainless account, so every IdP (Keycloak) login otherwise fragments into
+  # its own account. An init container stamps this domain onto the lone setup
+  # account so all logins land in it. Must be a valid, lowercase domain;
+  # `netbird.selfhosted` is what a fresh install resolves to. See the
+  # single-account-anchor init container in templates/server-deployment.yaml.
+  singleAccountDomain: netbird.selfhosted
+  # Image for the single-account-anchor init container. Must be able to run
+  # `sqlite3` (the default alpine installs it via apk at runtime).
+  anchorImage: alpine:3.20
+  mounts:
+    data:
+      mountPath: /var/lib/netbird
+      isOneFile: false
+      subPath: false
+      type:
+        persistentVolumeClaim:
+          claimName: netbird-server-data
+    config:
+      mountPath: /etc/netbird
+      isOneFile: false
+      subPath: false
+      type:
+        secret:
+          secretName: netbird-server-config
+
+dashboard:
+  image:
+    url: netbirdio/dashboard
+    tag: v2.39.0
+  name: netbird-dashboard
+  port: 80
+  replicasCount: 1
+  resources: {}
+
+pvc:
+  size: 4Gi
+  accessMode: ReadWriteOnce
+
+# Bootstrap of the first owner user's Personal Access Token (PAT) and its
+# periodic rotation. A post-install/upgrade hook Job creates the PAT
+# synchronously (so external tooling can read the Secret right after deploy),
+# and a CronJob rotates it on a schedule.
+pat:
+  enabled: true
+  secretName: netbird-pat
+  secretNamespace: ''
+  tokenName: crczp-managed
+  expireDays: 365
+  image: alpine:3.20
+  imagePullSecrets: []
+  serviceAccountName: netbird-pat-rotator
+  owner:
+    email: ''
+    name: CRCZP Admin
+    password: ''
+  rotation:
+    schedule: "0 3 * * *"

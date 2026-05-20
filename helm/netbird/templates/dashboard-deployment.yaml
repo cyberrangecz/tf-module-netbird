@@ -1,0 +1,40 @@
+{{- include "common.deployment.header" (dict "name" .Values.dashboard.name "replicasCount" .Values.dashboard.replicasCount "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) }}
+      containers:
+        - name: {{ .Values.dashboard.name }}
+          image: "{{ .Values.dashboard.image.url }}:{{ .Values.dashboard.image.tag }}"
+          ports:
+            - containerPort: {{ .Values.dashboard.port }}
+          readinessProbe:
+            tcpSocket:
+              port: {{ .Values.dashboard.port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          env:
+            - name: NETBIRD_MGMT_API_ENDPOINT
+              value: "https://netbird.{{ .Values.headHost }}:443"
+            - name: NETBIRD_MGMT_GRPC_API_ENDPOINT
+              value: "https://netbird.{{ .Values.headHost }}:443"
+            - name: AUTH_AUDIENCE
+              value: "netbird-dashboard"
+            - name: AUTH_CLIENT_ID
+              value: "netbird-dashboard"
+            - name: AUTH_CLIENT_SECRET
+              value: ""
+            - name: AUTH_AUTHORITY
+              value: "https://netbird.{{ .Values.headHost }}/oauth2"
+            - name: USE_AUTH0
+              value: "false"
+            - name: AUTH_SUPPORTED_SCOPES
+              value: "openid profile email groups"
+            - name: AUTH_REDIRECT_URI
+              value: "/nb-auth"
+            - name: AUTH_SILENT_REDIRECT_URI
+              value: "/nb-silent-auth"
+            - name: NGINX_SSL_PORT
+              value: "443"
+            - name: LETSENCRYPT_DOMAIN
+              value: "none"
+          {{- with .Values.dashboard.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}

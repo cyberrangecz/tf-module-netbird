@@ -1,0 +1,22 @@
+{{- if .Values.pat.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: netbird-pat-bootstrap
+  labels: {{- include "common.labels" (dict "name" "netbird-pat-bootstrap" "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 4 }}
+  annotations:
+    # Runs synchronously as part of install/upgrade so the PAT Secret exists
+    # before anything (e.g. Terraform) reads it. Idempotent: bootstraps on the
+    # first run, rotates on subsequent ones.
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      labels: {{- include "common.labels" (dict "name" "netbird-pat-bootstrap" "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 8 }}
+    spec:
+      {{- include "netbird.pat.podSpec" . | nindent 6 }}
+{{- end }}

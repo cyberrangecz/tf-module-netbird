@@ -1,0 +1,22 @@
+{{- if .Values.pat.enabled }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: netbird-pat-rotate
+  labels: {{- include "common.labels" (dict "name" "netbird-pat-rotate" "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 4 }}
+spec:
+  schedule: {{ .Values.pat.rotation.schedule | quote }}
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 120
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      ttlSecondsAfterFinished: 300
+      template:
+        metadata:
+          labels: {{- include "common.labels" (dict "name" "netbird-pat-rotate" "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 12 }}
+        spec:
+          {{- include "netbird.pat.podSpec" . | nindent 10 }}
+{{- end }}

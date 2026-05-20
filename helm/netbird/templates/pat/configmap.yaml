@@ -1,0 +1,10 @@
+{{- if .Values.pat.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "netbird.pat.name" . }}
+  labels: {{- include "common.labels" (dict "name" (include "netbird.pat.name" .) "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 4 }}
+data:
+  netbird-rotate-pat.sh: |-
+    {{- .Files.Get "files/netbird-rotate-pat.sh" | nindent 4 }}
+{{- end }}

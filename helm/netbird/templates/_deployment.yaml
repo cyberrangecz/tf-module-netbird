@@ -1,0 +1,93 @@
+
+{{- define "common.deployment.header" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .name }}
+  annotations:
+    reloader.stakater.com/auto: "true"
+  labels: {{- include "common.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .replicasCount }}
+  selector:
+    matchLabels: {{- include "common.matchLabels" . | nindent 6 }}
+  {{- if .strategy }}
+  strategy:
+    type: {{ .strategy }}
+  {{- end }}
+  template:
+    metadata:
+      labels: {{- include "common.labels" . | nindent 8 }}
+    spec:
+      {{- if .serviceAccountName }}
+      serviceAccountName: {{ .serviceAccountName }}
+      {{- end }}
+{{- end }}
+
+{{- define "common.deployment.containers" }}
+      containers:
+        - name: {{ .name }}
+          image: "{{ .Values.image.url }}:{{ .Values.image.tag }}"
+          {{- if .command }}
+          command: ["{{ .command }}"]
+          {{- end }}
+          {{- if .args }}
+          args: {{ .args }}
+          {{- end }}
+          {{- if .Values.environments }}
+          env:
+            {{- range $key, $value := .Values.environments }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+            {{- end }}
+          {{- end }}
+          {{- if not .portsDisabled }}
+          ports:
+            {{- range .ports }}
+            - containerPort: {{ .port }}
+            {{- end }}
+          readinessProbe:
+            {{- range .ports }}
+            {{- if and (eq .protocol "TCP") (.probe) }}
+            tcpSocket:
+              port: {{ .port }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            {{- end }}
+            {{- end }}
+          {{- end }}
+          volumeMounts:
+            {{- range $key, $mount := .Values.mounts }}
+            - name: {{ $key | replace "_" "-" }}
+              mountPath: "{{ $mount.mountPath }}{{ if $mount.isOneFile }}{{ if $mount.subPath }}{{ $key }}{{ $mount.extension }}{{ end }}{{ end }}"
+              {{- if $mount.subPath }}
+              subPath: "{{ $key }}{{ $mount.extension }}"
+              {{- end }}
+            {{- end }}
+{{- end }}
+
+{{- define "common.deployment.volumes" }}
+      volumes:
+        {{- range $key, $mount := .Values.mounts }}
+        - name: {{ $key | replace "_" "-" }}
+          {{- toYaml $mount.type | nindent 10 }}
+            {{- if $mount.isOneFile }}
+            items:
+              {{- if $mount.items }}
+              {{- range $mount.items }}
+              - key: "{{ .name }}{{ .extension }}"
+                path: "{{ .name }}{{ .extension }}"
+                {{- if .mode }}
+                mode: {{ .mode }}
+                {{- end }}
+              {{- end }}
+              {{- else }}
+              - key: "{{ $key }}{{ $mount.extension }}"
+                path: "{{ $key }}{{ $mount.extension }}"
+                {{- if $mount.mode }}
+                mode: {{ $mount.mode }}
+                {{- end }}
+              {{- end }}
+            {{- end }}
+        {{- end }}
+{{- end }}

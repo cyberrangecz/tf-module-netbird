@@ -1,0 +1,17 @@
+{{- define "common.svc" -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .name }}
+  labels: {{- include "common.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "common.matchLabels" . | nindent 4 }}
+  type: ClusterIP
+  ports:
+    {{- range .ports }}
+    - port: {{ .port }}
+      name: {{ .port | quote }}
+      targetPort: {{ .port }}
+      protocol: {{ .protocol }}
+    {{- end }}
+{{- end }}

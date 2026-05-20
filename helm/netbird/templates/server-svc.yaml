@@ -1,0 +1,2 @@
+{{- $ports := list (dict "port" .Values.server.port "protocol" "TCP") (dict "port" .Values.server.stunPort "protocol" "UDP") -}}
+{{- include "common.svc" (dict "name" .Values.server.name "ports" $ports "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) }}
