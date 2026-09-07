@@ -11,9 +11,9 @@
             periodSeconds: 10
           env:
             - name: NETBIRD_MGMT_API_ENDPOINT
-              value: "https://netbird.{{ .Values.headHost }}:443"
+              value: "https://{{ include "netbird.host" . }}:443"
             - name: NETBIRD_MGMT_GRPC_API_ENDPOINT
-              value: "https://netbird.{{ .Values.headHost }}:443"
+              value: "https://{{ include "netbird.host" . }}:443"
             - name: AUTH_AUDIENCE
               value: "netbird-dashboard"
             - name: AUTH_CLIENT_ID
@@ -21,7 +21,7 @@
             - name: AUTH_CLIENT_SECRET
               value: ""
             - name: AUTH_AUTHORITY
-              value: "https://netbird.{{ .Values.headHost }}/oauth2"
+              value: "https://{{ include "netbird.host" . }}/oauth2"
             - name: USE_AUTH0
               value: "false"
             - name: AUTH_SUPPORTED_SCOPES

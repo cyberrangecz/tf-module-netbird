@@ -1,0 +1,70 @@
+{{- /*
+Provisions the TLS certificate served on the NetBird host. Mutually-exclusive
+modes, in precedence order: a user-supplied key pair is used verbatim; otherwise
+a certificate is generated via cert-manager - forced self-signed via
+tls.selfSigned, otherwise Let's Encrypt.
+*/ -}}
+{{- $host := include "netbird.host" . -}}
+{{- $labels := dict "name" .Values.tls.secretName "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels -}}
+{{- if and .Values.tls.privateKey .Values.tls.publicKey }}
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Values.tls.secretName }}
+  labels: {{- include "common.labels" $labels | nindent 4 }}
+type: kubernetes.io/tls
+data:
+  tls.crt: {{ .Values.tls.publicKey }}
+  tls.key: {{ .Values.tls.privateKey }}
+{{- else if .Values.tls.selfSigned }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: netbird-selfsigned-issuer
+  labels: {{- include "common.labels" $labels | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.tls.secretName }}
+  labels: {{- include "common.labels" $labels | nindent 4 }}
+spec:
+  secretName: {{ .Values.tls.secretName }}
+  dnsNames:
+    - {{ $host }}
+  commonName: {{ $host }}
+  issuerRef:
+    name: netbird-selfsigned-issuer
+    kind: Issuer
+    group: cert-manager.io
+{{- else }}
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: netbird-letsencrypt
+  labels: {{- include "common.labels" $labels | nindent 4 }}
+spec:
+  acme:
+    server: {{ .Values.tls.acmeServer }}
+    email: {{ .Values.tls.acmeContact }}
+    privateKeySecretRef:
+      name: {{ .Values.tls.secretName }}-key
+    solvers:
+    - http01:
+       ingress:
+         class: traefik
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ .Values.tls.secretName }}
+  labels: {{- include "common.labels" $labels | nindent 4 }}
+spec:
+  secretName: {{ .Values.tls.secretName }}
+  issuerRef:
+    name: netbird-letsencrypt
+  dnsNames:
+  - {{ $host }}
+{{- end }}

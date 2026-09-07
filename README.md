@@ -31,6 +31,7 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
+| <a name="input_acme_contact"></a> [acme\_contact](#input\_acme\_contact) | Let's Encrypt contact email address (used when generating a certificate for an FQDN). | `string` | `""` | no |
 | <a name="input_head_host"></a> [head\_host](#input\_head\_host) | FQDN/IP address of node/LB, where head services are running | `string` | n/a | yes |
 | <a name="input_netbird_owner_email"></a> [netbird\_owner\_email](#input\_netbird\_owner\_email) | Email of the first NetBird owner user. Used only for the one-time /api/setup bootstrap. Defaults to admin@crczp | `string` | `null` | no |
 | <a name="input_netbird_owner_name"></a> [netbird\_owner\_name](#input\_netbird\_owner\_name) | Display name of the first NetBird owner user (one-time bootstrap). | `string` | `"CRCZP Admin"` | no |
@@ -38,6 +39,10 @@ No modules.
 | <a name="input_netbird_pat_rotation_schedule"></a> [netbird\_pat\_rotation\_schedule](#input\_netbird\_pat\_rotation\_schedule) | Cron schedule for the in-cluster PAT rotation CronJob. | `string` | `"0 3 * * *"` | no |
 | <a name="input_netbird_pat_rotator_image"></a> [netbird\_pat\_rotator\_image](#input\_netbird\_pat\_rotator\_image) | Container image (must provide curl and jq) used by the PAT bootstrap/rotation pods. | `string` | `"alpine:3.20"` | no |
 | <a name="input_netbird_pat_secret_namespace"></a> [netbird\_pat\_secret\_namespace](#input\_netbird\_pat\_secret\_namespace) | Namespace where the PAT rotation-store Secret is created and read from. Defaults to the netbird namespace. If set to another namespace, that namespace must already exist. | `string` | `null` | no |
+| <a name="input_netbird_subdomain"></a> [netbird\_subdomain](#input\_netbird\_subdomain) | Subdomain prefixed to head\_host where NetBird is served (e.g. "netbird" => netbird.<head\_host>). | `string` | `"netbird"` | no |
+| <a name="input_self_signed"></a> [self\_signed](#input\_self\_signed) | Use a self-signed certificate instead of Let's Encrypt for the NetBird FQDN. | `bool` | `false` | no |
+| <a name="input_tls_private_key"></a> [tls\_private\_key](#input\_tls\_private\_key) | Base64 encoded TLS private key for the NetBird host. If not specified together with tls\_public\_key, a certificate is generated. | `string` | `""` | no |
+| <a name="input_tls_public_key"></a> [tls\_public\_key](#input\_tls\_public\_key) | Base64 encoded TLS public key (certificate) for the NetBird host. If not specified together with tls\_private\_key, a certificate is generated. | `string` | `""` | no |
 
 ## Outputs
 

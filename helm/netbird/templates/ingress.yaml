@@ -6,22 +6,24 @@ metadata:
 spec:
   entryPoints:
     - websecure
+  tls:
+    secretName: {{ .Values.tls.secretName }}
   routes:
     - kind: Rule
-      match: Host(`netbird.{{ .Values.headHost }}`) && (PathPrefix(`/management.ManagementService`) || PathPrefix(`/signalexchange.SignalExchange`))
+      match: Host(`{{ include "netbird.host" . }}`) && (PathPrefix(`/management.ManagementService`) || PathPrefix(`/signalexchange.SignalExchange`))
       services:
         - kind: Service
           name: {{ .Values.server.name }}
           port: {{ .Values.server.port }}
           scheme: h2c
     - kind: Rule
-      match: Host(`netbird.{{ .Values.headHost }}`) && (PathPrefix(`/api`) || PathPrefix(`/oauth2`) || PathPrefix(`/ws-proxy`) || PathPrefix(`/relay`))
+      match: Host(`{{ include "netbird.host" . }}`) && (PathPrefix(`/api`) || PathPrefix(`/oauth2`) || PathPrefix(`/ws-proxy`) || PathPrefix(`/relay`))
       services:
         - kind: Service
           name: {{ .Values.server.name }}
           port: {{ .Values.server.port }}
     - kind: Rule
-      match: Host(`netbird.{{ .Values.headHost }}`)
+      match: Host(`{{ include "netbird.host" . }}`)
       services:
         - kind: Service
           name: {{ .Values.dashboard.name }}

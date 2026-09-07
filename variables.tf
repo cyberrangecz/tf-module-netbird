@@ -1,6 +1,23 @@
+variable "acme_contact" {
+  type        = string
+  description = "Let's Encrypt contact email address (used when generating a certificate for an FQDN)."
+  default     = ""
+}
+
 variable "head_host" {
   type        = string
   description = "FQDN/IP address of node/LB, where head services are running"
+}
+
+variable "netbird_subdomain" {
+  type        = string
+  description = "Subdomain prefixed to head_host where NetBird is served (e.g. \"netbird\" => netbird.<head_host>)."
+  default     = "netbird"
+
+  validation {
+    condition     = length(trimspace(var.netbird_subdomain)) > 0
+    error_message = "netbird_subdomain must not be empty."
+  }
 }
 
 variable "netbird_owner_email" {
@@ -42,4 +59,23 @@ variable "netbird_pat_rotator_image" {
   type        = string
   description = "Container image (must provide curl and jq) used by the PAT bootstrap/rotation pods."
   default     = "alpine:3.20"
+}
+
+variable "self_signed" {
+  type        = bool
+  description = "Use a self-signed certificate instead of Let's Encrypt for the NetBird FQDN."
+  default     = false
+}
+
+variable "tls_private_key" {
+  type        = string
+  description = "Base64 encoded TLS private key for the NetBird host. If not specified together with tls_public_key, a certificate is generated."
+  default     = ""
+  sensitive   = true
+}
+
+variable "tls_public_key" {
+  type        = string
+  description = "Base64 encoded TLS public key (certificate) for the NetBird host. If not specified together with tls_private_key, a certificate is generated."
+  default     = ""
 }

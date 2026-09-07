@@ -88,12 +88,32 @@ resource "helm_release" "netbird" {
     {
       name  = "pat.owner.name"
       value = var.netbird_owner_name
+    },
+    {
+      name  = "subdomain"
+      value = var.netbird_subdomain
+    },
+    {
+      name  = "tls.selfSigned"
+      value = var.self_signed
+    },
+    {
+      name  = "tls.publicKey"
+      value = var.tls_public_key
+    },
+    {
+      name  = "tls.acmeContact"
+      value = var.acme_contact
     }
   ]
 
   set_sensitive = [{
     name  = "pat.owner.password"
     value = random_password.netbird_owner_password.result
+    },
+    {
+      name  = "tls.privateKey"
+      value = var.tls_private_key
   }]
 
   depends_on = [

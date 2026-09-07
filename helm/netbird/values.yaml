@@ -1,5 +1,14 @@
 encryptionKey: ''
 headHost:
+subdomain: netbird
+
+tls:
+  selfSigned: false
+  privateKey: ''
+  publicKey: ''
+  secretName: netbird-certs
+  acmeContact: ''
+  acmeServer: https://acme-v02.api.letsencrypt.org/directory
 
 server:
   image:
