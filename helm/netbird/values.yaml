@@ -1,6 +1,5 @@
 encryptionKey: ''
-headHost:
-subdomain: netbird
+domain:
 
 tls:
   selfSigned: false

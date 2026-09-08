@@ -4,19 +4,13 @@ variable "acme_contact" {
   default     = ""
 }
 
-variable "head_host" {
+variable "netbird_domain" {
   type        = string
-  description = "FQDN/IP address of node/LB, where head services are running"
-}
-
-variable "netbird_subdomain" {
-  type        = string
-  description = "Subdomain prefixed to head_host where NetBird is served (e.g. \"netbird\" => netbird.<head_host>)."
-  default     = "netbird"
+  description = "Full FQDN where NetBird is served (e.g. vpn.example.com)."
 
   validation {
-    condition     = length(trimspace(var.netbird_subdomain)) > 0
-    error_message = "netbird_subdomain must not be empty."
+    condition     = length(trimspace(var.netbird_domain)) > 0
+    error_message = "netbird_domain must not be empty."
   }
 }
 

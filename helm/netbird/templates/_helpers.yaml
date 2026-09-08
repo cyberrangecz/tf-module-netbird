@@ -15,7 +15,7 @@ app.kubernetes.io/instance: {{ .release.Name }}
 {{- end -}}
 
 {{- define "netbird.host" -}}
-{{- printf "%s.%s" (required "subdomain must not be empty" .Values.subdomain) .Values.headHost -}}
+{{- required "domain must not be empty" .Values.domain -}}
 {{- end -}}
 
 {{- define "common.imagePullSecret" }}

@@ -46,8 +46,8 @@ resource "helm_release" "netbird" {
   create_namespace = false
 
   set = [{
-    name  = "headHost"
-    value = var.head_host
+    name  = "domain"
+    value = var.netbird_domain
     },
     {
       name  = "encryptionKey"
@@ -88,10 +88,6 @@ resource "helm_release" "netbird" {
     {
       name  = "pat.owner.name"
       value = var.netbird_owner_name
-    },
-    {
-      name  = "subdomain"
-      value = var.netbird_subdomain
     },
     {
       name  = "tls.selfSigned"
