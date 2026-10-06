@@ -23,8 +23,12 @@ admin@crczp
 Pod spec shared by the bootstrap Job and the rotation CronJob.
 The same script bootstraps the first owner+PAT when none exists, otherwise it
 mints a fresh PAT and revokes the previous one.
+Takes (dict "root" $ "bootstrap" true|false); only the bootstrap Job applies
+account settings, so a dashboard change survives until the next upgrade.
 */}}
 {{- define "netbird.pat.podSpec" -}}
+{{- $bootstrap := .bootstrap -}}
+{{- with .root -}}
 serviceAccountName: {{ .Values.pat.serviceAccountName }}
 restartPolicy: Never
 {{- with .Values.pat.imagePullSecrets }}
@@ -58,6 +62,10 @@ containers:
         value: {{ .Values.server.name | quote }}
       - name: SERVER_NAMESPACE
         value: {{ .Release.Namespace | quote }}
+      {{- if and $bootstrap .Values.networkRange }}
+      - name: NETWORK_RANGE
+        value: {{ .Values.networkRange | quote }}
+      {{- end }}
     volumeMounts:
       - name: script
         mountPath: /scripts
@@ -65,4 +73,5 @@ volumes:
   - name: script
     configMap:
       name: {{ include "netbird.pat.name" . }}
+{{- end -}}
 {{- end -}}

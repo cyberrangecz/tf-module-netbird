@@ -1,5 +1,11 @@
 encryptionKey: ''
 domain:
+# IPv4 range NetBird gives peer addresses from. Otherwise NetBird picks a random
+# /16 of 100.64.0.0/10, which can contain the sandbox WAN (100.100.100.0/24), and
+# a VPN entrypoint then routes WAN addresses into its tunnel. The PAT bootstrap
+# Job applies it on install/upgrade; changing it re-addresses every peer. Empty
+# keeps NetBird's own range.
+networkRange: 100.64.0.0/16
 
 tls:
   selfSigned: false

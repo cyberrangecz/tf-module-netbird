@@ -1,7 +1,8 @@
 #!/bin/sh
 # Bootstrap the NetBird first owner user (once) and rotate its Personal Access
 # Token (PAT). Run by the chart's post-install/upgrade hook Job (bootstrap) and
-# by the rotation CronJob (periodic rotation) — the logic is identical.
+# by the rotation CronJob (periodic rotation) — the logic is identical, except
+# that only the Job sets NETWORK_RANGE.
 #
 # The current PAT is persisted in a Kubernetes Secret ($PAT_SECRET_NAME) in the
 # pod namespace, which acts as the durable rotation store:
@@ -19,6 +20,8 @@
 #   PAT_EXPIRE_DAYS   PAT lifetime in days (1-365)
 #   SERVER_DEPLOYMENT name of the netbird-server Deployment (bootstrap restart target)
 #   SERVER_NAMESPACE  namespace of the netbird-server Deployment
+# Optional env:
+#   NETWORK_RANGE     IPv4 CIDR the account gives peer addresses from
 set -eu
 
 API="${NB_API_URL%/}"
@@ -62,6 +65,9 @@ write_store() { # pat user_id
 # --- NetBird API helpers --------------------------------------------------
 nb() { # method path [auth] [data]  -> body in /tmp/nb.json, prints status code
   m="$1"; p="$2"; auth="${3:-}"; data="${4:-}"
+  # curl leaves the file untouched when no body arrives; an error message must
+  # not print the previous response, which may hold the setup PAT.
+  : > /tmp/nb.json
   set -- -sS -o /tmp/nb.json -w '%{http_code}' -X "$m" "$API$p"
   [ -n "$auth" ] && set -- "$@" -H "Authorization: Token $auth"
   [ -n "$data" ] && set -- "$@" -H "Content-Type: application/json" -d "$data"
@@ -88,6 +94,34 @@ restart_server() {
   else
     echo "warning: could not restart deployment/$SERVER_DEPLOYMENT (HTTP $code);" >&2
     echo "the single-account anchor will apply on the next server restart." >&2
+  fi
+}
+
+# Changing the range re-addresses every peer, so skip the update when it matches.
+apply_network_range() { # pat
+  [ -n "${NETWORK_RANGE:-}" ] || return 0
+  code="$(nb GET /api/accounts "$1")"
+  [ "$code" = "200" ] || { echo "reading the account failed (HTTP $code): $(cat /tmp/nb.json)" >&2; return 1; }
+  current="$(jq -r '.[0].settings.network_range // empty' /tmp/nb.json)"
+  if [ "$current" = "$NETWORK_RANGE" ]; then
+    echo "Network range is already $NETWORK_RANGE."
+    return 0
+  fi
+  account_id="$(jq -r '.[0].id // empty' /tmp/nb.json)"
+  [ -n "$account_id" ] || { echo "could not determine the account id: $(cat /tmp/nb.json)" >&2; return 1; }
+  # The PUT replaces every setting, so send the current ones back. Without
+  # `extra` the server keeps its stored extra settings, including fields the API
+  # does not expose.
+  body="$(jq -c --arg r "$NETWORK_RANGE" \
+    '{settings: (.[0].settings | del(.extra) | .network_range = $r)}' /tmp/nb.json)"
+  code="$(nb PUT "/api/accounts/$account_id" "$1" "$body")"
+  [ "$code" = "200" ] || { echo "updating the account settings to network range $NETWORK_RANGE failed (HTTP $code): $(cat /tmp/nb.json)" >&2; return 1; }
+  # The server masks the range, so a value with host bits set changes nothing.
+  applied="$(jq -r '.settings.network_range // empty' /tmp/nb.json)"
+  if [ "$applied" = "$current" ]; then
+    echo "Network range is already $applied (configured as $NETWORK_RANGE)."
+  else
+    echo "Network range changed from ${current:-unset} to $applied; every peer was re-addressed."
   fi
 }
 
@@ -120,10 +154,14 @@ if [ -z "$PAT" ]; then
   [ -n "$PAT" ] || { echo "setup did not return a PAT: $(cat /tmp/nb.json)" >&2; exit 1; }
   write_store "$PAT" "$USER_ID"
   echo "Bootstrap complete (user $USER_ID)."
+  # A failure must not skip the restart: the Job's retry takes the rotation path,
+  # which applies the range again but never restarts the server.
+  status=0
+  apply_network_range "$PAT" || status=1
   # The setup account was created with an empty domain; roll the server so the
   # anchor init container claims it and single-account mode stays enabled.
   restart_server
-  exit 0
+  exit "$status"
 fi
 
 # Subsequent run: resolve the owner, mint a new PAT, revoke the others.
@@ -160,3 +198,5 @@ for tid in $(jq -r '.[].id' /tmp/nb.json); do
 done
 
 echo "Rotation complete (new token $NEW_ID)."
+
+apply_network_range "$NEW_PAT" || exit 1

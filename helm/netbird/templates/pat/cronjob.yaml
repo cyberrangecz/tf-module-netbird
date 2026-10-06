@@ -18,5 +18,5 @@ spec:
         metadata:
           labels: {{- include "common.labels" (dict "name" "netbird-pat-rotate" "chart" .Chart "release" .Release "extraLabels" .Values.extraLabels) | nindent 12 }}
         spec:
-          {{- include "netbird.pat.podSpec" . | nindent 10 }}
+          {{- include "netbird.pat.podSpec" (dict "root" . "bootstrap" false) | nindent 10 }}
 {{- end }}
