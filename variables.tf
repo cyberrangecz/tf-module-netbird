@@ -28,7 +28,7 @@ variable "netbird_owner_name" {
 
 variable "netbird_pat_secret_namespace" {
   type        = string
-  description = "Namespace where the PAT rotation-store Secret is created and read from. Defaults to the netbird namespace. If set to another namespace, that namespace must already exist."
+  description = "Namespace where the PAT rotation-store Secret is created and read from. Defaults to the netbird namespace. If set to another namespace, that namespace must already exist. The Secret is not removed on destroy; a later deploy against fresh NetBird data overwrites it."
   default     = null
 }
 

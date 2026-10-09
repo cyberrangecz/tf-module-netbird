@@ -8,6 +8,9 @@
 # pod namespace, which acts as the durable rotation store:
 #   * first run  -> POST /api/setup creates the owner + an initial PAT
 #   * later runs -> use the stored PAT to create a fresh PAT and revoke the old
+# Nothing owns the Secret, so it can outlive the server's data (terraform destroy
+# keeps a Secret in another namespace). While the server reports setup required,
+# the stored PAT cannot be valid and the first-run path overwrites it.
 #
 # Required env:
 #   NB_API_URL        base URL of the NetBird management API (e.g. http://netbird-server.netbird.svc.cluster.local)
@@ -74,6 +77,19 @@ nb() { # method path [auth] [data]  -> body in /tmp/nb.json, prints status code
   curl "$@"
 }
 
+# Unauthenticated. True only while the server has no accounts and no local
+# users, so no stored PAT can be valid against it. Call it only as a condition:
+# a curl failure must not trip set -e.
+instance_needs_setup() {
+  code="$(nb GET /api/instance)"
+  required="$(jq -r '.setup_required | if type == "boolean" then tostring else empty end' /tmp/nb.json 2>/dev/null || true)"
+  if [ "$code" != "200" ] || [ -z "$required" ]; then
+    echo "warning: could not read the NetBird instance status (HTTP $code); keeping the stored PAT." >&2
+    return 1
+  fi
+  [ "$required" = "true" ]
+}
+
 # Roll the server Deployment (like `kubectl rollout restart`). Used once after
 # the bootstrap so the single-account-anchor init container re-runs against the
 # freshly created setup account and the server reloads its account cache with
@@ -136,9 +152,15 @@ done
 
 read_store
 
+# Overwrite the stale store rather than delete it: workloads mount the Secret.
+if [ -n "$PAT" ] && instance_needs_setup; then
+  echo "NetBird reports setup required; discarding the stored PAT of a previous instance."
+  PAT=""; USER_ID=""
+fi
+
 if [ -z "$PAT" ]; then
   # First run: create the owner and an initial PAT via the setup endpoint.
-  echo "No stored PAT found, bootstrapping first owner via /api/setup ..."
+  echo "Bootstrapping first owner via /api/setup ..."
   body="$(jq -n --arg e "$OWNER_EMAIL" --arg n "$OWNER_NAME" --arg p "$OWNER_PASSWORD" \
     --argjson d "$PAT_EXPIRE_DAYS" \
     '{email:$e, name:$n, password:$p, create_pat:true, pat_expire_in:$d}')"
@@ -176,10 +198,12 @@ echo "Rotating PAT for user $USER_ID ..."
 new="$(jq -n --arg n "$PAT_TOKEN_NAME" --argjson d "$PAT_EXPIRE_DAYS" \
   '{name:$n, expires_in:$d}')"
 code="$(nb POST "/api/users/$USER_ID/tokens" "$PAT" "$new")"
-if [ "$code" = "401" ] || [ "$code" = "403" ]; then
-  echo "stored PAT is no longer valid (HTTP $code) — likely expired between runs." >&2
-  echo "Delete secret $PAT_SECRET_NAME and re-run only if no account exists yet," >&2
-  echo "otherwise create a fresh PAT in the dashboard and seed the secret." >&2
+# NetBird answers 401 for an expired PAT and 404 for an unknown PAT or user.
+if [ "$code" = "401" ] || [ "$code" = "403" ] || [ "$code" = "404" ]; then
+  echo "stored PAT was rejected (HTTP $code): $(jq -r '.message // empty' /tmp/nb.json)" >&2
+  echo "NetBird already has an account, so it is not bootstrapped again. Create a PAT" >&2
+  echo "for the owner in the dashboard and store it under key pat in secret" >&2
+  echo "$POD_NAMESPACE/$PAT_SECRET_NAME (user_id may be left empty)." >&2
   exit 1
 fi
 [ "$code" = "200" ] || [ "$code" = "201" ] || { echo "token creation failed (HTTP $code): $(cat /tmp/nb.json)" >&2; exit 1; }
