@@ -24,7 +24,9 @@ Pod spec shared by the bootstrap Job and the rotation CronJob.
 The same script bootstraps the first owner+PAT when none exists, otherwise it
 mints a fresh PAT and revokes the previous one.
 Takes (dict "root" $ "bootstrap" true|false); only the bootstrap Job applies
-account settings, so a dashboard change survives until the next upgrade.
+the network range, so a dashboard change survives until the next upgrade. Both
+remove the default policy, which also covers a CronJob re-running the setup
+after the server lost its data.
 */}}
 {{- define "netbird.pat.podSpec" -}}
 {{- $bootstrap := .bootstrap -}}
@@ -65,6 +67,10 @@ containers:
       {{- if and $bootstrap .Values.networkRange }}
       - name: NETWORK_RANGE
         value: {{ .Values.networkRange | quote }}
+      {{- end }}
+      {{- if eq (toString .Values.removeDefaultPolicy) "true" }}
+      - name: REMOVE_DEFAULT_POLICY
+        value: "true"
       {{- end }}
     volumeMounts:
       - name: script

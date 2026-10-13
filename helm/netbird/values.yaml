@@ -6,6 +6,14 @@ domain:
 # Job applies it on install/upgrade; changing it re-addresses every peer. Empty
 # keeps NetBird's own range.
 networkRange: 100.64.0.0/16
+# Delete the policy NetBird creates with every account, and any other
+# unrestricted All-to-All policy: each lets every peer reach every other one,
+# across sandboxes and from VPN entrypoints back to VPN clients. Unless another
+# policy uses the All group, only the per-sandbox policies then grant reach. The
+# PAT Job and the rotation CronJob both remove them; false leaves the account's
+# policies alone but does not bring a removed one back. The combined server has
+# no setting to skip creating it.
+removeDefaultPolicy: true
 
 tls:
   selfSigned: false

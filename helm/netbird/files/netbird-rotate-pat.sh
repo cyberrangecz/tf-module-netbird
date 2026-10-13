@@ -25,6 +25,8 @@
 #   SERVER_NAMESPACE  namespace of the netbird-server Deployment
 # Optional env:
 #   NETWORK_RANGE     IPv4 CIDR the account gives peer addresses from
+#   REMOVE_DEFAULT_POLICY
+#                     "true" deletes the policy connecting the All group to itself
 set -eu
 
 API="${NB_API_URL%/}"
@@ -141,6 +143,53 @@ apply_network_range() { # pat
   fi
 }
 
+# NetBird gives every new account a "Default" policy connecting the All group,
+# which every peer joins, to itself. Any peer then reaches every other one, and
+# the per-sandbox groups decide only which routes a client gets. NetBird never
+# recreates it for an existing account. Match the unrestricted All-to-All rule
+# rather than the name, so a renamed copy goes too and an unrelated policy
+# called Default stays.
+remove_default_policy() { # pat
+  [ "${REMOVE_DEFAULT_POLICY:-}" = "true" ] || return 0
+  # NetBird itself knows the group only by name; a colliding name resolves to
+  # the group with the most peers, which All always is.
+  code="$(nb GET "/api/groups?name=All" "$1")"
+  [ "$code" = "200" ] || { echo "looking up the All group failed (HTTP $code): $(cat /tmp/nb.json)" >&2; return 1; }
+  all_id="$(jq -r 'if length == 1 then .[0].id // empty else empty end' /tmp/nb.json)"
+  [ -n "$all_id" ] || { echo "could not determine the All group id: $(cat /tmp/nb.json)" >&2; return 1; }
+  code="$(nb GET /api/policies "$1")"
+  [ "$code" = "200" ] || { echo "listing the policies failed (HTTP $code): $(cat /tmp/nb.json)" >&2; return 1; }
+  # A one-way All-to-All rule still opens every peer to every other one. The
+  # name is JSON-encoded so a newline in it cannot start another record.
+  policies="$(jq -r --arg all "$all_id" '.[]
+    | select((.rules | length) == 1 and (.source_posture_checks // []) == [])
+    | select(.rules[0]
+        | [.sources[]?.id] == [$all] and [.destinations[]?.id] == [$all]
+          and .action == "accept" and .protocol == "all"
+          and (.ports // []) == [] and (.port_ranges // []) == []
+          and .sourceResource == null and .destinationResource == null)
+    | "\(.id) \(.name | @json)"' /tmp/nb.json)" \
+    || { echo "reading the policies failed: $(cat /tmp/nb.json)" >&2; return 1; }
+  if [ -z "$policies" ]; then
+    echo "No unrestricted policy connects the All group to itself."
+    return 0
+  fi
+  while read -r policy_id policy_name; do
+    case "$policy_id" in
+      '' | *[!A-Za-z0-9_-]*) echo "unexpected policy id in: $policies" >&2; return 1 ;;
+    esac
+    code="$(nb DELETE "/api/policies/$policy_id" "$1")"
+    # printf, not echo: some shells' echo expands escapes in the JSON-encoded name.
+    case "$code" in
+      200) printf 'Removed policy %s (%s), which connected the All group to itself.\n' "$policy_name" "$policy_id" ;;
+      404) printf 'Policy %s (%s) was already removed.\n' "$policy_name" "$policy_id" ;;
+      *) printf 'removing policy %s (%s) failed (HTTP %s): %s\n' "$policy_name" "$policy_id" "$code" "$(cat /tmp/nb.json)" >&2; return 1 ;;
+    esac
+  done <<EOF
+$policies
+EOF
+}
+
 # Wait until the management API answers (any HTTP response means it is up).
 echo "Waiting for NetBird API at $API ..."
 i=0
@@ -177,9 +226,10 @@ if [ -z "$PAT" ]; then
   write_store "$PAT" "$USER_ID"
   echo "Bootstrap complete (user $USER_ID)."
   # A failure must not skip the restart: the Job's retry takes the rotation path,
-  # which applies the range again but never restarts the server.
+  # which applies the account settings again but never restarts the server.
   status=0
   apply_network_range "$PAT" || status=1
+  remove_default_policy "$PAT" || status=1
   # The setup account was created with an empty domain; roll the server so the
   # anchor init container claims it and single-account mode stays enabled.
   restart_server
@@ -223,4 +273,7 @@ done
 
 echo "Rotation complete (new token $NEW_ID)."
 
-apply_network_range "$NEW_PAT" || exit 1
+status=0
+apply_network_range "$NEW_PAT" || status=1
+remove_default_policy "$NEW_PAT" || status=1
+exit "$status"
